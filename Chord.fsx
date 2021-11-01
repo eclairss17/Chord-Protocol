@@ -12,6 +12,7 @@ let system =
 let mutable num = 0
 let mutable chordMap = Map.empty
 let mutable keyMap = Set.empty
+let mutable keyfound = false
 let arbitrary = Random()
 
 type MessageObject =
@@ -19,14 +20,23 @@ type MessageObject =
     | ChangeSuccessor of Map<int, IActorRef>*int*int
     | ChangePredecessor of  Map<int, IActorRef>*int*int
     | KeyDistribute of int
+    | Callpredecessor of int
     | FingerTable of Map<int, IActorRef>*int
     | DeadNodeKeyTransfer
     | ReceiveKeysFromDeadNode of Set<int>
+    | ReceiveFingerTableFromDeadNode of Map<int, IActorRef>* Map<int, IActorRef>
+    | DeadNodeFingerTableTransfer
+    | SearchKey of Map<int, IActorRef>*int
+    | SearchMethod2 of int
+    | SearchMethod3 of int
 
 let player(mailbox: Actor<_>) =
     let mutable successor = Map.empty
+    let mutable successorReceived = Map.empty
+    let mutable lastSecondNodeCheck = Map.empty
     let mutable predecessor = Map.empty
     let mutable keys = Set.empty
+    let mutable selectednodes = Set.empty  
     let mutable totalplayers = 0
     let mutable nodeid= 0
     let rec loop () = 
@@ -71,16 +81,25 @@ let player(mailbox: Actor<_>) =
                         // printfn "After deleting node %i new predecessor node is %i" deletenode newprevid                        
                         flag<-false
 
+
             | KeyDistribute(keyid) -> 
+                let mutable onlyonce = true
+                if (onlyonce) then 
+                    for KeyValue(k,v) in predecessor do
+                        chordMap.[k] <! Callpredecessor(keyid)
+                        onlyonce<-false
+            
+            | Callpredecessor(keyid) ->    
                 keys<-keys.Add(keyid)
                 printfn "Node %i has got the key %i" nodeid keyid
+           
 
             | DeadNodeKeyTransfer -> 
                 send <! keys  
             
             | ReceiveKeysFromDeadNode(keysetToAdd)->
                 if not (keysetToAdd.IsEmpty) then
-                    printfn "----------------------- settttt for %i ---%A" nodeid keysetToAdd 
+                    // printfn "----------------------- settttt for %i ---%A" nodeid keysetToAdd 
                     keys<- Set.union keys keysetToAdd
                     printfn " new set for %i is ==== %A" nodeid keys
                 else 
@@ -101,6 +120,46 @@ let player(mailbox: Actor<_>) =
                             successor<-successor.Add(totalnodes,chordMap.[totalnodes])
                             // printfn "Finger Table for %i has last entry %i" nodeid totalnodes
                             onlyonce<- false
+            | DeadNodeFingerTableTransfer ->                 
+                send <! successor
+            | ReceiveFingerTableFromDeadNode(fingerTableFromFailedNode,chordMap) -> 
+                let mutable flag= true 
+                // printfn "Old Finger table for node %i is ---- %A" nodeid successor
+                let join (p:Map<'a,'b>) (q:Map<'a,'b>) = 
+                    Map(Seq.concat [ (Map.toSeq p) ; (Map.toSeq q)])
+
+                
+                successorReceived<- join successorReceived fingerTableFromFailedNode
+                successorReceived<- successorReceived.Remove nodeid
+                successor<- join successorReceived successor
+                
+            // | SearchKey(chordMap,keyid) -> 
+            //     if(keys.Contains(keyid)) then 
+            //         printfn "Key exists at node ----- %i " nodeid
+
+            //     else if nodeid = totalplayers then
+            //         printfn "Key Node Found"
+            //         // while not keyfound do 
+            //     else 
+            //         for KeyValue(k,v) in successor do 
+            //             chordMap.[k] <! SearchKey(chordMap,keyid)
+            //             printfn "searching at node %i" k
+
+            // | SearchMethod2(keyid) ->
+            //     printfn " key found -- %b" keyfound
+            //     if (keys.Contains(keyid)) then 
+            //         printfn "Key exists at node ----- %i " nodeid
+            //         keyfound<- true
+            //     else if nodeid = totalplayers then
+            //         printfn "Key Node Found"
+            //     else if not keyfound then 
+            //         for KeyValue(k,v) in successor do
+            //             printfn "sending key for next search------- %i" k
+            //             if not(k = totalplayers) then
+            //                 chordMap.[k] <! SearchMethod2(keyid)
+            //     else 
+            //         printfn "Key Node Found at node %i"
+                        // send <! k
             return! loop ()     
     }
     loop()
@@ -151,7 +210,7 @@ let Chordinitiate (totalNodes: int) =
         let mutable nextnodeId = 0 
         let mutable prevnodeId = 0  
         let mutable findnext = false   
-        let mutable delete =  arbitrary.Next(2,num)
+        let mutable delete =  arbitrary.Next(2,num-1)
         printfn "deleting nodee ------------> %i" delete
         while (nodeexists) do 
             if not (findnext) then
@@ -163,6 +222,10 @@ let Chordinitiate (totalNodes: int) =
                 chordMap.[prevnodeId] <!  ChangeSuccessor(chordMap, nextnodeId, delete)
                 let response = Async.RunSynchronously((chordMap.[delete] <? DeadNodeKeyTransfer), 2000)
                 chordMap.[nextnodeId] <! ReceiveKeysFromDeadNode(response)
+                if not (delete=num) then
+                    let response2 = Async.RunSynchronously((chordMap.[delete] <? DeadNodeFingerTableTransfer), 2000)
+                    chordMap.[nextnodeId] <! ReceiveFingerTableFromDeadNode(response2,chordMap)
+
                 // printfn "Running loop"
                 chordMap.[nextnodeId] <!  ChangePredecessor(chordMap, prevnodeId, delete)
                 // printfn "Delete Complete for %i " delete
@@ -174,21 +237,33 @@ let Chordinitiate (totalNodes: int) =
                 if not (chordMap.ContainsKey(nextnodeId)) && not stop then
                     findnext<-true
                     nextnodeId<-nextnodeId+1
-                    printfn "next node %i" nextnodeId
+                    // printfn "next node %i" nextnodeId
                 if not (chordMap.ContainsKey(prevnodeId)) && not stop then
                     findnext<-true
                     prevnodeId<-prevnodeId-1  
-                    printfn " previousnode %i " prevnodeId
+                    // printfn " previousnode %i " prevnodeId
                 if (deleteset.Contains(delete) ) then
                     nodeexists<-false 
-                    stop <- true
+                    stop<- true
 
         deleteset<-deleteset.Add(delete)
         // printfn "delete set %A " deleteset
+    // Console.WriteLine("Enter Key to Search") 
+    // let keyid = Console.ReadLine()
+    // let mutable nodeselect =  int(keyid)
+    // let mutable response3 = Set.empty
+    // if (chordMap.ContainsKey(nodeselect)) then 
+    //     if not (keyfound) then            
+    //         response3 <- Async.RunSynchronously (chordMap.[nodeselect] <? SearchMethod2( int(keyid)),2000) 
+    //         printfn "response %A" response3
+    //         // response3 <- Async.RunSynchronously(chordMap.[response3] <? SearchMethod2( int(keyid)),2000)
+    // else 
+    //     nodeselect<- nodeselect-1 
+
 
     printfn "Terminate"
-    
 Chordinitiate(10)
+    
     // let mutable sample = Map.empty
 
     // sample<-sample.Add(1,[1])
@@ -199,6 +274,29 @@ Chordinitiate(10)
     // if(sample.ContainsKey(2)) then 
     //     sample<- sample |> Map.remove 2
     // printfn "Set a: %O " sample
+    
+    // let merge (a : Map<'a, 'b>) (b : Map<'a, 'b>) (f : 'a -> 'b * 'b -> 'b) =
+    // Map.fold (fun s k v ->
+    //     match Map.tryFind k s with
+    //     | Some v' -> Map.add k (f k (v, v')) s
+    //     | None -> Map.add k v s) a b
+
+    // let a = Map([1,11;2,21;3,31;])
+
+    // let b = Map([3,32; 4,41;5,51;6,61;])
+    // let map = merge a b (fun k (v, v') -> v + v');;
+    // printfn " %A -----" map
+
+    // let join (p:Map<'a,'b>) (q:Map<'a,'b>) = 
+    //     Map(Seq.concat [ (Map.toSeq p) ; (Map.toSeq q) ])
+    // let a = Map([1,11;2,21;3,31;])
+
+    // let b = Map([3,32; 4,41;5,51;6,61;])
+
+    // let c = join b a
+    // printfn "%A" c
+    
+
 
     // Console.WriteLine( sample.[2])
 
