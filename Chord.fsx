@@ -31,6 +31,7 @@ type MessageObject =
     | DeadNodeFingerTableTransfer
     | SearchKey of int
     | SearchInFingerTable of int
+    | ResetNumberofHops
     | ReturnNumberofHops
 
 
@@ -45,7 +46,7 @@ let player(mailbox: Actor<_>) =
     let mutable totalplayers = 0
     let mutable nodeid= 0
     let mutable requestedKeyFound = false
-    let mutable temp = -1
+    let mutable temp1 = -1
     
     let rec loop () = 
         actor {
@@ -61,7 +62,7 @@ let player(mailbox: Actor<_>) =
                     // printfn "Successor of Nodeid %i is %A " nodeid successor.[nodeid+1]
                 if not (nodeid = 1) then 
                     predecessor<- predecessor.Add(nodeid-1,chordMap.[nodeid-1] )
-                    // printfn "Predecessor of Nodeid %i is %A " nodeid predecessor.[0]
+                    // printfn "Predecessor of Nodeid %i is %A " nodeid predecessor.[nodeid-1]
                 mailbox.Self <! FingerTable(chordMap,totalplayers)
 
             | ChangeSuccessor(chordMap, newsuccessorid, deletenode)->
@@ -98,21 +99,21 @@ let player(mailbox: Actor<_>) =
                 if not (nodeidOfKey = totalplayers) then
                     for KeyValue(k,v) in successor do
                         if onlyonce then
-                            // printfn "callsuccessor---> %i" k
                             if(k>nodeidOfKey) then
-                                onlyonce<- false
                                 chordMap.[k] <! Callsuccessor(keyid) 
+                                onlyonce<- false                    
                     
-                else 
+                else                 
                     keys<-keys.Add(keyid)   
-                    // printfn "key %i -*-> Node %i" keyid nodeid 
-                    printf "keys %A" keys 
+                    printfn "key %A -*-> Node %i" keys nodeid 
+                  
 
 
             
             | Callsuccessor(keyid) ->    
-                keys<-keys.Add(keyid)
-                // printfn "key %i *-*>* Node %i" keyid nodeid         
+                if nodeid <> 0 then
+                    keys<-keys.Add(keyid)
+                printfn "key %A *-*>* Node %i" keys nodeid         
 
             | DeadNodeKeyTransfer -> 
                 send <! keys
@@ -139,7 +140,8 @@ let player(mailbox: Actor<_>) =
                         if (onlyonce) then 
                             successor<-successor.Add(totalnodes,chordMap.[totalnodes])
                             // printfn "Finger Table for %i has last entry %i" nodeid totalnodes
-                            onlyonce<- false
+                            onlyonce<- false                
+                
             | DeadNodeFingerTableTransfer ->                 
                 send <! successor
             | ReceiveFingerTableFromDeadNode(fingerTableFromFailedNode,chordMap) -> 
@@ -151,38 +153,12 @@ let player(mailbox: Actor<_>) =
                 successorReceived<- successorReceived.Remove nodeid
                 successor<- join successorReceived successor
                 
-            // | SearchKey(chordMap,keyid) -> 
-            //     if(keys.Contains(keyid)) then 
-            //         printfn "Key exists at node ----- %i " nodeid
-
-            //     else if nodeid = totalplayers then
-            //         printfn "Key Node Found"
-            //         // while not keyfound do 
-            //     else 
-            //         for KeyValue(k,v) in successor do 
-            //             chordMap.[k] <! SearchKey(chordMap,keyid)
-            //             printfn "searching at node %i" k
-
-            // | SearchMethod2(keyid) ->
-            //     printfn " key found -- %b" keyfound
-            //     if (keys.Contains(keyid)) then 
-            //         printfn "Key exists at node ----- %i " nodeid
-            //         keyfound<- true
-            //     else if nodeid = totalplayers then
-            //         printfn "Key Node Found"
-            //     else if not keyfound then 
-            //         for KeyValue(k,v) in successor do
-            //             printfn "sending key for next search------- %i" k
-            //             if not(k = totalplayers) then
-            //                 chordMap.[k] <! SearchMethod2(keyid)
-            //     else 
-            //         printfn "Key Node Found at node %i"
-                        // send <! k
             
             | SearchKey (keyid)-> 
                 //check whether Key exists in the key set or not
                 //check whether the key exists in the fingertable or not
                 
+               
                 let mutable fingerTableSearch = 2 
                 
                 if(keys.Contains(keyid)) then 
@@ -194,22 +170,60 @@ let player(mailbox: Actor<_>) =
                     // send<! false 
 
                     let mutable flag = false
-                    
+                    let mutable temp = -1
+                    // let mutable check = false
+                    // printfn " SSSTemp1------>%i" temp1
+                    // printfn " SSSTemp------->%i" temp 
+                    // if(temp1<keyid) then
+                    //     temp1<-temporaryNodeState
+                    // else(temp1=keyid) then  
+                    //     temp<-temporaryNodeState
+                        // let mutable temp1 = -1
+                        
 
-                    while not flag do
-                        for KeyValue(k,v) in successor do
-                            if k <= keyid then
-                                temp <- k
-                        printfn " Temp---%i" temp
-                        fingerTableSearch <- Async.RunSynchronously(chordMap.[temp] <? SearchInFingerTable(keyid),2000)
-                        if(fingerTableSearch = 1) then
-                            requestedKeyFound <- true
-                            temp<- -1
-                            flag<- true
-                        else
+                     
+                    // printf "\n-------------suc%A ----------------------------------------\n" successor 
+                    for KeyValue(k,v) in successor do
+                        if k<=keyid then 
+                            temp1 <- k                        
+                        else if k>keyid && not flag then                            
+                            flag <- true
+                            temp <- k         
+                                     
+                    
+                    if( (fingerTableSearch <> 1)) then
+                        numberOfHops<- numberOfHops + 1    
+                        // if (temp1<=keyid) && (fingerTableSearch <> 1) then 
+                        //     if (temp1 <> -1) then
+                        //         fingerTableSearch <- Async.RunSynchronously(chordMap.[temp1] <? SearchInFingerTable(keyid),2000)
+                        //         printf "fingertablecheckpred----%i" fingerTableSearch
+                        if  (fingerTableSearch <> 1) then                         
+                            if temp-keyid>=2 then 
+                                temp<- temp1
+                            fingerTableSearch <- Async.RunSynchronously(chordMap.[temp] <? SearchInFingerTable(keyid),2000)
+                            // printf "fingertablechecksuc----%i" fingerTableSearch
+
+                    if(fingerTableSearch = 1) then                        
+                        requestedKeyFound <- true
+                        temp <- -1
+                        // temp1<- -1
+                    else
+                        // if(chordMap.ContainsKey(temp1)) && (temp1<keyid || temp1=keyid) && not check then                        
+                        //     printf "\nCall pre %i---at%i\n" keyid temp1
+                        //     if temp<> -1 then
+                        //         chordMap.[temp1] <! SearchKey(keyid,temp1)
+                        //     if temp1=keyid then
+                        //         check<-true
+                        if (chordMap.ContainsKey(temp))  then
+                            printf "\nCall suc %i---at%i\n" keyid temp
+                            chordMap.[temp] <! SearchKey(keyid)
                             
-                            if(chordMap.ContainsKey(temp)) then
-                                chordMap.[temp] <! SearchKey(keyid)
+                    
+                    if (requestedKeyFound=true) then
+                        printfn "Hopes-->%i" numberOfHops 
+                        printfn "Node %i Found Key* %i" nodeid keyid
+                        send<! 1
+
 
                     // for KeyValue(k,v) in successor do
                             // fingerTableSearch<-2
@@ -251,6 +265,8 @@ let player(mailbox: Actor<_>) =
                 else 
                     send<! 2
             
+            | ResetNumberofHops ->    
+                numberOfHops<-0
             | ReturnNumberofHops ->
                 send<! numberOfHops
 
@@ -266,10 +282,10 @@ let Chordinitiate (totalNodes: int) =
         chordMap <- chordMap.Add(var, spawn system (sprintf "actor%i" var) player)
 
     
-    for var = 2 to num do
+    for var = 1 to num do
         let state = chordMap
         chordMap.[var] <! ChordMapping(chordMap,var)
-    // printfn " All chords initially mapped"
+    // printf "\n--------------------------chordmap %A-----------------------\n" chordMap
 
     //  Select the amount of Keys in circulation 
     let amount = arbitrary.Next(1,(num)/3)
@@ -283,6 +299,7 @@ let Chordinitiate (totalNodes: int) =
     // Select which nodes to send the Keys
     let mutable randNode = 0
     let mutable onlyonce = true
+    chordMap.[2] <! Callsuccessor(1)
     while not (keyMap.IsEmpty)  do
         LowestKey<- Set.minElement keyMap
         // let mutable randNode = arbitrary.Next(1,(updateUpperBound)+1)
@@ -304,10 +321,10 @@ let Chordinitiate (totalNodes: int) =
             onlyonce<-false               
             
         if (keyMap.Contains(LowestKey)) && chordMap.ContainsKey(randNode) then
-            // printfn "SendingKey%i-------------Node%i" LowestKey randNode               
+            printfn "SendingKey%i-------------Node%i" LowestKey randNode               
             chordMap.[randNode] <! KeyDistribute(LowestKey,randNode)            
             keyMap<-keyMap |> Set.remove LowestKey
-            // printfn " %A" keyMap
+            printfn " %A" keyMap
             onlyonce<-true    
         else                 
             randNode<- randNode+1
@@ -356,21 +373,35 @@ let Chordinitiate (totalNodes: int) =
 
     //     deleteset<-deleteset.Add(delete)
         // printfn "delete set %A " deleteset
-    Console.WriteLine("Enter Number of Requests") 
-    let numberOfRequests = Console.ReadLine()
-    let requests= int(numberOfRequests)
-    // while not (requests = 0) then
-    let mutable nodeselect =  arbitrary.Next(1,num+1)
-    printfn "nodeselect kiya --->%i" nodeselect
-    let mutable response3 = 0
-    if (chordMap.ContainsKey(nodeselect)) then 
-    
-        // if not (keyfound) && (nodeselect<chordMap.Count-int(numberOfRequests)) then       
-        let mutable findKey = arbitrary.Next(nodeselect,num)
-        printfn "Initiating search for %i---k%i " nodeselect findKey
-        response3<- Async.RunSynchronously (chordMap.[nodeselect] <? SearchKey(findKey),2000) 
-        // printfn "response----> %i" response3
+    // Console.WriteLine("Enter Number of Requests") 
+    // let numberOfRequests = Console.ReadLine()
+    // let mutable requests= int(numberOfRequests)
+    let mutable nodeselect = 0
+    let mutable hops = 0
+    let mutable count = 0
+    // while not (requests = 0) do
+    for KeyValue(k,v) in chordMap do
+        if(k=1) then
+            nodeselect<- k+1
+        else 
+            nodeselect<-  k
+
+        printfn "nodeselect kiya --->%i" nodeselect
+        let mutable response3 = 0
         
+        if (chordMap.ContainsKey(nodeselect)) then 
+        
+            // if not (keyfound) && (nodeselect<chordMap.Count-int(numberOfRequests)) then       
+            let mutable findKey = arbitrary.Next(nodeselect,num)
+            printfn "Initiating search for %i---k%i " nodeselect findKey
+            response3<- Async.RunSynchronously (chordMap.[nodeselect] <? SearchKey(findKey),2000)            
+            if (response3 = 1) then
+                printfn "response---->%i" response3
+                hops<- hops + Async.RunSynchronously (chordMap.[nodeselect] <? ReturnNumberofHops)
+                count<-count+1
+
+            
+        // requests<-requests-1
         // if (response3 = 1) then 
         // keyfound<- true
         // printfn "Search Works"
@@ -381,41 +412,9 @@ let Chordinitiate (totalNodes: int) =
 
 
     printfn "Terminate"
-Chordinitiate(15)
+Chordinitiate(5)
     
-    // let mutable sample = Map.empty
-
-    // sample<-sample.Add(1,[1])
-    // sample<-sample.Add(2,[3])
-    // sample<-sample.Add(3,[34])
-    // printfn "Set a: %O " sample
-    // // Map.iter (fun x -> printf "%O " x) sample
-    // if(sample.ContainsKey(2)) then 
-    //     sample<- sample |> Map.remove 2
-    // printfn "Set a: %O " sample
-    
-    // let merge (a : Map<'a, 'b>) (b : Map<'a, 'b>) (f : 'a -> 'b * 'b -> 'b) =
-    // Map.fold (fun s k v ->
-    //     match Map.tryFind k s with
-    //     | Some v' -> Map.add k (f k (v, v')) s
-    //     | None -> Map.add k v s) a b
-
-    // let a = Map([1,11;2,21;3,31;])
-
-    // let b = Map([3,32; 4,41;5,51;6,61;])
-    // let map = merge a b (fun k (v, v') -> v + v');;
-    // printfn " %A -----" map
-
-    // let join (p:Map<'a,'b>) (q:Map<'a,'b>) = 
-    //     Map(Seq.concat [ (Map.toSeq p) ; (Map.toSeq q) ])
-    // let a = Map([1,11;2,21;3,31;])
-
-    // let b = Map([3,32; 4,41;5,51;6,61;])
-
-    // let c = join b a
-    // printfn "%A" c
+   
     
 
-
-    // Console.WriteLine( sample.[2])
 
