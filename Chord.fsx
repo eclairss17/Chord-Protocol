@@ -160,179 +160,54 @@ let player(mailbox: Actor<_>) =
                 successor<- join successorReceived successor
        
 
-               | SearchKey (keyid)-> 
+                //check whether Key exists in the key set or not
+                //check whether the key exists in the fingertable or not
+            
+            | SearchKey (keyid)-> 
+                
+                numberOfHops<- numberOfHops+1
+                if(keys.Contains(keyid)) then 
+                    printfn "\n Node %i found key %i\n" nodeid keyid
+                    // printfn "number of hopes %i" numberOfHops
                     
-                    numberOfHops<- numberOfHops+1
-                    if(keys.Contains(keyid)) then 
-                        printfn "\n Node %i found key %i\n" nodeid keyid
-                        // printfn "number of hopes %i" numberOfHops
+                
+                else 
+                    if nodeid<>keyid then
+                        // printfn "\n Check For keyid in Finger table"
+                        if (successor.ContainsKey(keyid)) then  
+                            
+                            numberOfHops<- numberOfHops+1
+                            chordMap.[keyid] <! SearchKey(keyid)
+
+                    else if nodeid = keyid then    
+                        let mutable nextpossiblesuccessor = keyid + 1
+                        let mutable flag = true 
                         
+                        while flag do
+                            
+                            if (successor.ContainsKey(nextpossiblesuccessor)) then  
+                                flag<- false
+                                numberOfHops<- numberOfHops+1
+                                chordMap.[nextpossiblesuccessor] <! SearchKey(keyid)
+                            else 
+                                nextpossiblesuccessor<-nextpossiblesuccessor + 1
                     
                     else 
-                        if nodeid<>keyid then
-                            // printfn "\n Check For keyid in Finger table"
-                            if (successor.ContainsKey(keyid)) then  
-                                
-                                numberOfHops<- numberOfHops+1
-                                chordMap.[keyid] <! SearchKey(keyid)
-
-                        else if nodeid = keyid then    
-                            let mutable nextpossiblesuccessor = keyid + 1
-                            let mutable flag = true 
-                            
-                            while flag do
-                                
-                                if (successor.ContainsKey(nextpossiblesuccessor)) then  
-                                    flag<- false
-                                    numberOfHops<- numberOfHops+1
-                                    chordMap.[nextpossiblesuccessor] <! SearchKey(keyid)
-                                else 
-                                    nextpossiblesuccessor<-nextpossiblesuccessor + 1
+                        let mutable nodeInFingerTable =0
                         
-                        else 
-                            let mutable nodeInFingerTable =0
-                            
-                            for KeyValue (k,v) in successor do  
-                                if (k<=keyid) then 
-                                    nodeInFingerTable<- k
-                                    
-                            
-                            if chordMap.ContainsKey(nodeInFingerTable) then
-                                numberOfHops<- numberOfHops+1
-                                chordMap.[nodeInFingerTable] <! SearchKey(keyid)
-                            else
-                                printfn "Errorr"    
+                        for KeyValue (k,v) in successor do  
+                            if (k<=keyid) then 
+                                nodeInFingerTable<- k
+                                
+                        
+                        if chordMap.ContainsKey(nodeInFingerTable) then
+                            numberOfHops<- numberOfHops+1
+                            chordMap.[nodeInFingerTable] <! SearchKey(keyid)
+                        else
+                            printfn "Errorr"    
 
 
             
-            //     //check whether Key exists in the key set or not
-            //     //check whether the key exists in the fingertable or not
-            //     printfn "\n Step 1 \n"
-               
-            //     let mutable fingerTableSearch = 2 
-            //     printfn "\n Step 2 \n"
-                
-            //     if(keys.Contains(keyid)) then 
-            //         printfn "Node %i Found Key** %i" nodeid keyid
-            //         fingerTableSearch<-1
-            //         if (fingerTableSearch = 1 ) then
-            //             send<! fingerTableSearch
-            //     else 
-            //         printfn "\n Step 3 \n"
-                   
-
-            //         let mutable flag = false
-            //         let mutable temp = -1
-            //         // let mutable temp1 = -1
-            //         let mutable count = 0
-                   
-            //         // temp<- SearchNearestNode (keyid)
-
-            //         printfn "Successor %A" successor 
-            //         for KeyValue(k,v) in successor do
-            //             // if k<=keyid then 
-            //             //     temp1 <- k  
-            //             printfn "key %i and kryid %i" k keyid      
-            //             count <- count + 1             
-            //             if (k > keyid) && (not flag) then    
-            //                 printf "============================>Temp chnaged to %i" k                        
-            //                 temp <- k         
-            //                 flag <- true
-                        
-            //             if not flag && (count = successor.Count) then
-            //                 temp <- k
-            //             // printfn "SSSTemp1------>%i" temp1
-            //         printfn "SSSTemp------->%i" temp 
-                                     
-            //         if( (fingerTableSearch <> 1)) then
-            //             numberOfHops<- numberOfHops + 1    
-                                                                    
-            //             // if temp-keyid>=2 then 
-            //             //    printfn "\n-----if %i - %i >=2-------------\n" temp keyid
-            //             //    temp<- temp1
-            //             printfn "\n-----------------------------%iKey--(%itemp)" keyid temp
-            //             if (temp <> -1) then
-            //                 fingerTableSearch <- Async.RunSynchronously(chordMap.[temp] <? SearchInFingerTable(keyid),2000)
-                        
-
-            //         if(fingerTableSearch = 1) then                        
-            //             requestedKeyFound <- true
-            //             // temp <- -1
-            //             // temp1<- -1
-            //         else
-                     
-            //             if (chordMap.ContainsKey(temp))  then
-            //                 printf "\nCall%i---at%i\n" keyid temp
-            //                 let keySuccessor: int = Async.RunSynchronously(chordMap.[keyid] <? GetSuccessor(keyid),2000)
-            //                 if(temp > keySuccessor) then
-            //                     chordMap.[keySuccessor] <! SearchKey(keyid,keySuccessor)
-            //                 else 
-            //                     chordMap.[temp] <! SearchKey(keyid, temp)
-                            
-                    
-            //         if (requestedKeyFound=true) then
-            //             printfn "Hopes-->%i" numberOfHops 
-            //             printfn "Node %i Found Key* %i" nodeid keyid
-            //             send<! 1
-            // | SearchNearestNode(keyid) -> 
-                
-            //     // if not onlyonce then
-            //     //     let mutable prevnodeId = nodeid+1 
-            //     //     onlyonce<- true
-            //     let mutable prevnodeId = 0
-            //     printfn "\n Step 4 \n"
-            //     printfn "\n %A \n" successor
-            //     for KeyValue(k,v) in successor do
-            //         printfn "\n Step 5 \n"
-                    
-            //         if k<keyid then
-            //             prevnodeId<-k
-            //     send<! prevnodeId
-
-                    // for KeyValue(k,v) in successor do
-                            // fingerTableSearch<-2
-                            // if (k <= keyid) &&  (fingerTableSearch <> 1) then
-                            //     numberOfHops 1<- numberOfHops + 1                           
-                            //     fingerTableSearch <- Async.RunSynchronously(chordMap.[temp] <? SearchInFingerTable(keyid),2000)
-                            //     if(fingerTableSearch = 1) then
-                            //         requestedKeyFound <- true
-                            //     printfn "callingSearchOn--->%i isKeyFound-%i" k fingerTableSearch
-
-                            // else if(k > keyid) &&  (fingerTableSearch <> 1) then                             
-                            //     if (k = totalplayers) then 
-                            //         fingerTableSearch <- 0
-                            //         numberOfHops <- 0
-                            //         printfn "CheckResponse -------%i" nodeid
-                            //         send <!  nodeid
-                            //     if (chordMap.ContainsKey(k)) then
-                            //         printfn "callingSearchOnooohlalala--->%i" k
-                            //         fingerTableSearch <- Async.RunSynchronously(chordMap.[k] <? SearchInFingerTable(keyid),2000)
-                            //         if(fingerTableSearch = 2) then 
-                            //             chordMap.[k] <! SearchKey(keyid) 
-                            //         else 
-                            //             if(fingerTableSearch = 1) then
-                            //                 requestedKeyFound <- true
-                            //             printfn "Node-%i found key-%i" nodeid keyid
-                            //             send <! fingerTableSearch
-
-                            // if fingerTableSearch=1 then 
-                            //     send<! 1 
-                            // else
-                            //     numberOfHops<-0 
-                            //     send<! 2 
-                           
-                       
-            // | SearchInFingerTable (keyid)->
-            //     if (keys.Contains(keyid)) then 
-            //         printfn "actor-%i key-%i" nodeid keyid
-            //         send<! 1
-            //     else 
-            //         send<! 2
-            
-            // | ResetNumberofHops ->    
-            //     numberOfHops<-0
-            // | ReturnNumberofHops ->
-            //     send<! numberOfHops
 
 
             return! loop ()     
@@ -382,53 +257,55 @@ let Chordinitiate () =
              
     
     let mutable deleteset = Set.empty
+    let mutable upperbound = num/3
     for var = 1 to 5 do 
-        let mutable nodeexists = true   
-        let mutable nextnodeId = 0 
-        let mutable prevnodeId = 0  
-        let mutable findnext = false   
-        let mutable delete =  arbitrary.Next(2,num-1)
-        printfn "deleting nodee ------------> %i" delete
-        while (nodeexists) do 
-            if not (findnext) then
-                nextnodeId<- delete + 1
-                prevnodeId<- delete - 1
+        // let mutable nodeexists = true   
+        // let mutable nextnodeId = 0 
+        // let mutable prevnodeId = 0  
+        // let mutable findnext = false   
+        // let mutable delete =  arbitrary.Next(2,num-1)
+        // printfn "deleting nodee ------------> %i" delete
+        // while (nodeexists) do 
+        //     if not (findnext) then
+        //         nextnodeId<- delete + 1
+        //         prevnodeId<- delete - 1
             
-            if (chordMap.ContainsKey(nextnodeId) && chordMap.ContainsKey(prevnodeId) && chordMap.ContainsKey(delete) ) then 
-                // printfn "Initiating delete for %i---p%i---n%i  " delete prevnodeId nextnodeId
-                chordMap.[prevnodeId] <!  ChangeSuccessor(chordMap, nextnodeId, delete)
-                let response = Async.RunSynchronously((chordMap.[delete] <? DeadNodeKeyTransfer), 2000)
-                // printfn " Response-----%i---%A" delete response
-                chordMap.[nextnodeId] <! ReceiveKeysFromDeadNode(response)
-                if not (delete=num) then
-                    let response2 = Async.RunSynchronously((chordMap.[delete] <? DeadNodeFingerTableTransfer), 2000)
-                    chordMap.[nextnodeId] <! ReceiveFingerTableFromDeadNode(response2,chordMap)
-                chordMap.[nextnodeId] <!  ChangePredecessor(chordMap, prevnodeId, delete)
+        //     if (chordMap.ContainsKey(nextnodeId) && chordMap.ContainsKey(prevnodeId) && chordMap.ContainsKey(delete) ) then 
+        //         // printfn "Initiating delete for %i---p%i---n%i  " delete prevnodeId nextnodeId
+        //         chordMap.[prevnodeId] <!  ChangeSuccessor(chordMap, nextnodeId, delete)
+        //         let response = Async.RunSynchronously((chordMap.[delete] <? DeadNodeKeyTransfer), 2000)
+        //         // printfn " Response-----%i---%A" delete response
+        //         chordMap.[nextnodeId] <! ReceiveKeysFromDeadNode(response)
+        //         if not (delete=num) then
+        //             let response2 = Async.RunSynchronously((chordMap.[delete] <? DeadNodeFingerTableTransfer), 2000)
+        //             chordMap.[nextnodeId] <! ReceiveFingerTableFromDeadNode(response2,chordMap)
+        //         chordMap.[nextnodeId] <!  ChangePredecessor(chordMap, prevnodeId, delete)
                 
-                chordMap<-chordMap.Remove delete
-                nodeexists<- false
+        //         chordMap<-chordMap.Remove delete
+        //         nodeexists<- false
 
-            else 
-                let mutable stop = false
-                if (deleteset.Contains(delete) ) then
-                    nodeexists<-false 
-                    stop<- true
-                if not (chordMap.ContainsKey(nextnodeId)) && not stop then
-                    findnext<-true
-                    nextnodeId<-nextnodeId+1
-                    // printfn "next node %i" nextnodeId
-                if not (chordMap.ContainsKey(prevnodeId)) && not stop then
-                    findnext<-true
-                    prevnodeId<-prevnodeId-1  
-                    // printfn " previousnode %i " prevnodeId
+        //     else 
+        //         let mutable stop = false
+        //         if (deleteset.Contains(delete) ) then
+        //             nodeexists<-false 
+        //             stop<- true
+        //         if not (chordMap.ContainsKey(nextnodeId)) && not stop then
+        //             findnext<-true
+        //             nextnodeId<-nextnodeId+1
+        //             // printfn "next node %i" nextnodeId
+        //         if not (chordMap.ContainsKey(prevnodeId)) && not stop then
+        //             findnext<-true
+        //             prevnodeId<-prevnodeId-1  
+        //             // printfn " previousnode %i " prevnodeId
 
-        deleteset<-deleteset.Add(delete)
+        // deleteset<-deleteset.Add(delete)
         printfn "delete set %A " deleteset
     
   
     let mutable nodeselect = 0
     let mutable covergeRatio = 0.0
     let mutable hops = 0
+    let request = float (requests)
     let mutable count = num-1
     while not (requests = 0) do
         for KeyValue(k,v) in chordMap do
@@ -443,14 +320,14 @@ let Chordinitiate () =
             if (chordMap.ContainsKey(nodeselect)) then             
                      
                 let mutable findKey = arbitrary.Next(nodeselect,num)
-                printfn "Initiating search for %i---k%i " nodeselect findKey
+                // printfn "Initiating search for %i---k%i " nodeselect findKey
                 chordMap.[nodeselect] <! SearchKey(findKey)
                                 
 
                
              
         requests<-requests-1
-        covergeRatio <- float(numberOfHops)/float(count)
+        covergeRatio <- float(numberOfHops)/(float(count))
         printfn "\n Ratio is ---%f\n"  covergeRatio      
 
             
